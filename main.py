@@ -64,9 +64,9 @@ async def health():
 @app.post("/api/chat")
 async def chat(
     message: str = Form(...),
-    x_openai_key: Optional[str] = Header(None),
-    x_groq_key: Optional[str] = Header(None),
-    x_serper_key: Optional[str] = Header(None),
+    x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
+    x_groq_key: Optional[str] = Header(None, alias="X-Groq-Key"),
+    x_serper_key: Optional[str] = Header(None, alias="X-Serper-Key"),
 ):
     try:
         msg_lower = message.lower()
@@ -127,9 +127,9 @@ async def chat(
 async def generate_report(
     prompt: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
-    x_openai_key: Optional[str] = Header(None),
-    x_groq_key: Optional[str] = Header(None),
-    x_serper_key: Optional[str] = Header(None),
+    x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
+    x_groq_key: Optional[str] = Header(None, alias="X-Groq-Key"),
+    x_serper_key: Optional[str] = Header(None, alias="X-Serper-Key"),
 ):
     try:
         file_path = ""
@@ -189,9 +189,9 @@ async def transcribe(
     youtube_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     instructions: Optional[str] = Form(None),
-    x_openai_key: Optional[str] = Header(None),
-    x_groq_key: Optional[str] = Header(None),
-    x_serper_key: Optional[str] = Header(None),
+    x_openai_key: Optional[str] = Header(None, alias="X-OpenAI-Key"),
+    x_groq_key: Optional[str] = Header(None, alias="X-Groq-Key"),
+    x_serper_key: Optional[str] = Header(None, alias="X-Serper-Key"),
 ):
     try:
         if x_openai_key and x_openai_key.strip():
