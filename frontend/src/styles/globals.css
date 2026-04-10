@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #080C14;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure all page content sits above particles */
+#__next { position: relative; z-index: 1; }
+
+/* ── Force all inputs/textareas to dark background ── */
+input,
+textarea,
+select {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+  caret-color: #a78bfa;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #4b5563 !important;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-hover {
+    transition: all 0.2s ease;
+  }
+
+  .glass-hover:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-violet {
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+  }
+
+  /* Dark input wrapper used in pages */
+  .input-dark {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+    color: #ffffff;
+    transition: border-color 0.2s;
+  }
+
+  .input-dark:focus-within {
+    border-color: rgba(139, 92, 246, 0.5);
+  }
+}
+
+/* Prose for markdown output */
+.prose-dark p { color: #d1d5db; margin-bottom: 0.75rem; line-height: 1.7; }
+.prose-dark h1, .prose-dark h2, .prose-dark h3 { color: #f9fafb; font-weight: 700; margin: 1.5rem 0 0.75rem; }
+.prose-dark h1 { font-size: 1.5rem; }
+.prose-dark h2 { font-size: 1.25rem; }
+.prose-dark h3 { font-size: 1.1rem; }
+.prose-dark code { background: rgba(139,92,246,0.15); color: #a78bfa; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
+.prose-dark pre { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 1rem; overflow-x: auto; }
+.prose-dark ul, .prose-dark ol { color: #d1d5db; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+.prose-dark li { margin-bottom: 0.25rem; }
+.prose-dark strong { color: #f9fafb; }
+.prose-dark hr { border-color: rgba(255,255,255,0.08); margin: 1.5rem 0; }

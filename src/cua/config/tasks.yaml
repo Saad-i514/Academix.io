@@ -1,0 +1,216 @@
+video_download_task:
+  description: >
+    Read the routing directives first.
+    If selected_workflow is YOUTUBE_NOTES, use the YouTubeMediaAssistant tool to process
+    this exact URL: {youtube_url}. Return a high-fidelity transcript with accurate timestamps.
+    If selected_workflow is not YOUTUBE_NOTES, return SKIPPED: Not a YouTube workflow.
+  expected_output: >
+    A complete transcript with timestamps, or SKIPPED message for non-YouTube workflows.
+  agent: YouTubeMediaAssistant
+
+planner_agent_task:
+  description: >
+    Create a short execution plan based on user_input {user_input}, routing mode {task_type},
+    topic {topic}, and youtube_url {youtube_url}.
+    Planning objective: {planner_goal}
+    The plan must include workflow selection rationale, tool execution sequence, and output format.
+  expected_output: >
+    A concise workflow plan with clear steps that downstream tasks can follow.
+  agent: PlannerAgent
+
+routing_decision_task:
+  description: >
+    Using user_input {user_input}, task_type {task_type} (AUTO mode), and the planner plan,
+    produce explicit routing directives for downstream tasks.
+    If user_input describes a programming task, set selected_workflow to CODE_EXECUTION.
+    Return a compact routing block with selected_workflow (YOUTUBE_NOTES, GENERAL_QUERY,
+    CODE_EXECUTION, NUMERICAL_METHODS, or LAB_REPORT), tools_to_use list,
+    should_upload_to_notion flag, and notes_format specification.
+  expected_output: >
+    A deterministic routing directive with selected_workflow, tools_to_use list,
+    should_upload_to_notion boolean, and notes_format string.
+  agent: PlannerAgent
+
+code_execution_task:
+  description: >
+    You are a senior software engineer. Your job is to write AND execute code.
+
+    Analyze user_input: {user_input}
+
+    If this is a programming task (CODE_EXECUTION or GENERAL_QUERY with code request):
+
+    STEP 1 - WRITE THE CODE:
+    Write complete, working, well-commented Python code that fully solves the problem.
+    Rules for the code:
+    - Replace any input() calls with hardcoded sample values (e.g., num_threads = 3)
+    - The code must run without any user interaction
+    - Include all imports
+    - Add clear comments explaining each section
+    - For threading/semaphore tasks, use num_threads = 3 as the default sample value
+
+    STEP 2 - EXECUTE THE CODE:
+    Use the CodeCompilerTool with the exact code you wrote and language="python".
+    The tool will return the actual stdout output.
+
+    STEP 3 - RETURN BOTH:
+    Return in this exact format:
+
+    CODE:
+    ```python
+    [paste your complete code here]
+    ```
+
+    OUTPUT:
+    ```
+    [paste the exact stdout from CodeCompilerTool here]
+    ```
+
+    If the user requests visual graphs, charts, or plots, use the DataVizTool instead
+    of CodeCompilerTool. Ensure the markdown output from DataVizTool is included
+    so the final report can display the images.
+
+    If not a programming task, return: SKIPPED: No code execution required.
+  expected_output: >
+    The complete Python code in a fenced code block, followed by the actual execution
+    output in a separate output block. Both sections must be present and populated.
+  agent: CoderAgent
+
+lab_report_generation_task:
+  description: >
+    Read routing directives first.
+    If selected_workflow is LAB_REPORT, use LabReportGenerator tool to extract content
+    from the lab manual file at {lab_manual_path}.
+    Parse the extracted content to identify title, objective, theory, and procedure.
+    If theory is incomplete, use search_tool to find additional information.
+    Convert algorithm to Octave code and execute using OctaveOnline tool.
+    Compile everything into a professional lab report.
+    If selected_workflow is not LAB_REPORT, return SKIPPED: Not a lab report workflow.
+  expected_output: >
+    A complete professional lab report in markdown format, or SKIPPED for non-lab workflows.
+  agent: LabReportGeneratorAgent
+
+numerical_methods_task:
+  description: >
+    Read routing directives first.
+    If selected_workflow is NUMERICAL_METHODS, solve the requested numerical problem.
+    Use OctaveOnline tool to execute Octave/MATLAB code and include execution output.
+    Return a lab-style report with problem statement, method, code, output, and interpretation.
+    If selected_workflow is not NUMERICAL_METHODS, return SKIPPED: Not a numerical methods workflow.
+  expected_output: >
+    A numerical methods lab report with code and execution output, or SKIPPED message.
+  agent: NumericalMethodsAgent
+
+notes_creation_task:
+  description: >
+    You are a senior academic writer with 20 years of experience. Write a complete,
+    professional, submission-ready lab report that reads like it was written by a
+    skilled human student — not an AI.
+
+    CRITICAL: Extract the code AND its execution output from code_execution_task context.
+    The Results section MUST contain the actual program output. Never use placeholders.
+
+    WRITING STYLE:
+    - Natural, flowing academic English with varied sentence structure
+    - Active voice where appropriate
+    - Theory reads like a textbook, not a bullet list
+    - No robotic AI phrases like "It is worth noting that..." or "This experiment aims to..."
+    - Smooth transitions between sections
+
+    DOCUMENT STRUCTURE — use exactly these headings:
+
+    # [Specific Experiment Title — infer from user_input]
+
+    **University:** [University Name]
+    **Course:** [Course Name and Code — infer from context]
+    **Experiment:** [Title]
+    **Student:** [Student Name]
+    **Date:** [today's date]
+    **Instructor:** [Instructor Name]
+
+    ---
+
+    ## Table of Contents
+    1. Objective
+    2. Theory and Background
+    3. Methodology
+    4. Implementation
+    5. Results and Analysis
+    6. Discussion
+    7. Conclusion
+    8. References
+
+    ---
+
+    ## 1. Objective
+
+    [2-3 sentences. Specific about what is being implemented and demonstrated.]
+
+    ---
+
+    ## 2. Theory and Background
+
+    [5+ paragraphs covering the core concept in depth. Include:
+    - Formal definitions
+    - How it works at the OS level
+    - Mathematical relationships where relevant (use inline math notation)
+    - Real-world applications
+    - Comparison with related concepts
+    Write like a textbook chapter.]
+
+    ---
+
+    ## 3. Methodology
+
+    [Numbered steps. Each step explains WHY, not just WHAT.
+    Include: environment setup, design decisions, testing approach.]
+
+    ---
+
+    ## 4. Implementation
+
+    [Brief design explanation, then the EXACT code from code_execution_task.
+    After the code block, explain each major section in 1-2 sentences.]
+
+    ---
+
+    ## 5. Results and Analysis
+
+    [MANDATORY: Copy the EXACT execution output from code_execution_task here in a code block.
+    If there are markdown images returned from DataVizTool, include them directly so the chart
+    renders continuously.
+    Then analyze what the output demonstrates. Use a comparison table if applicable.]
+
+    ---
+
+    ## 6. Discussion
+
+    [3-4 paragraphs interpreting results, discussing edge cases, limitations,
+    and connecting back to theory.]
+
+    ---
+
+    ## 7. Conclusion
+
+    [3-4 sentences summarizing achievements and suggesting future work.]
+
+    ---
+
+    ## 8. References
+
+    [MANDATORY: Use the CitationFinder tool to find 4-5 REAL citations for the topic.
+    Query it with the main concept (e.g., "semaphore mutual exclusion operating systems").
+    Format all references in IEEE style. Never fabricate or guess citations.]
+
+    ABSOLUTE RULES:
+    - Results section MUST have actual program output — never a placeholder
+    - Remove ALL SKIPPED text
+    - No emojis anywhere
+    - Minimum 1200 words
+    - Use memory_context {memory_context} for continuity
+
+  expected_output: >
+    A polished, human-quality academic lab report in Markdown. All 8 sections complete.
+    Results section contains actual execution output copied from code_execution_task.
+    Theory is textbook-quality. Zero placeholders. Zero SKIPPED. Zero AI phrasing.
+    Minimum 1200 words.
+  agent: Elite_Academic_Document_Architect
