@@ -45,6 +45,14 @@ Academix is a comprehensive full-stack web application that leverages AI agents 
 
 ## 🏗️ Architecture
 
+### System Overview
+
+![Academix Architecture](docs/academix_architecture.png)
+
+For detailed architecture documentation, see [docs/architecture.md](docs/architecture.md)
+
+### High-Level Components
+
 ```
 academix/
 ├── frontend/          # Next.js + TypeScript + Tailwind CSS
@@ -66,9 +74,18 @@ academix/
     │   ├── agents.yaml      # Agent definitions
     │   └── tasks.yaml       # Task configurations
     ├── tools/               # Custom AI tools
+    │   └── youtube_video_downloader_tool.py  # YouTube bot bypass
     ├── crew.py              # Crew orchestration
     └── main.py              # Entry point
 ```
+
+### Key Features
+
+- **Multi-Agent AI System**: CrewAI orchestrates specialized agents for different tasks
+- **YouTube Bot Bypass**: User agent rotation, retry logic, and cookie support
+- **Parallel Processing**: 4-thread transcription pipeline with FFmpeg
+- **Client-Side Security**: API keys stored in browser, never on server
+- **Scalable Architecture**: Stateless backend ready for horizontal scaling
 
 ---
 
