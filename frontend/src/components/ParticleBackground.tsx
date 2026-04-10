@@ -52,7 +52,12 @@ export default function ParticleBackground() {
             speed: 1.2,
             straight: false,
           },
-          number: { density: { enable: true, area: 800 }, value: 80 },
+          number: { 
+            density: { 
+              enable: true
+            }, 
+            value: 80 
+          },
           opacity: { value: { min: 0.3, max: 0.7 } },
           shape: { type: "circle" },
           size: { value: { min: 2, max: 4 } },
