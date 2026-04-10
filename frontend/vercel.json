@@ -4,6 +4,6 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://YOUR-RAILWAY-APP.railway.app/api"
+    "NEXT_PUBLIC_API_URL": "https://academixio-production.up.railway.app"
   }
 }
