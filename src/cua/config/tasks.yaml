@@ -92,6 +92,8 @@ lab_report_generation_task:
     8. If the Manual Contains Exercises then make sure you solve EACH question from the lab manual
     9. If user uploads manual then DO NOT use citation tool
     10. If user provides manual then use ONLY that manual for the report
+    11. FOR CODING EXERCISES: DO NOT use CitationFinder or search_tool - focus ONLY on solving exercises
+    12. EXERCISE PRIORITY: If manual contains exercises, focus 90% on solving them, 10% on theory
     
     UNIVERSAL LAB MANUAL SUPPORT - ALL SUBJECTS:
     This task supports ALL types of lab manuals across all subjects:
@@ -113,8 +115,10 @@ lab_report_generation_task:
       THEORY RULE: MAXIMUM 2-3 LINES PER CONCEPT
       - Write ONLY brief definitions (1-2 sentences each)
       - NO detailed explanations, NO history, NO extensive background
+      - NO CitationFinder tool, NO search_tool for coding exercises
       - Example: "A binary search tree is a data structure where left child < parent < right child."
       - FOCUS: 80% code implementation, 20% minimal theory
+      - IF EXERCISES EXIST: 90% solving exercises, 10% theory
       - Sections: Brief objective → Minimal theory (2-3 lines) → Code → Output → Analysis
     
     TYPE B - NUMERICAL/MATHEMATICAL LABS (Numerical Methods, ML algorithms):
@@ -122,16 +126,32 @@ lab_report_generation_task:
       - Include necessary mathematical formulas and algorithm explanations
       - Show derivations if present in manual
       - Explain convergence criteria and error analysis
+      - Use search_tool ONLY if theory is incomplete in manual
       - FOCUS: 40% theory/math, 60% code/results
+      - IF EXERCISES EXIST: 70% solving exercises, 30% theory
       - Sections: Objective → Theory with formulas → Algorithm → Code → Results → Analysis
     
     TYPE C - PURE THEORY LABS (Conceptual, no coding required):
       THEORY RULE: DETAILED EXPLANATIONS
       - Comprehensive explanations of concepts
       - Include diagrams, examples, and case studies
+      - Use search_tool if additional context needed
       - No code execution needed
       - FOCUS: 90% theory and analysis, 10% examples
       - Sections: Objective → Detailed Theory → Examples → Discussion → Conclusion
+    
+    EXERCISE-FIRST APPROACH:
+    When lab manual contains exercises:
+    1. PRIORITY: Solving exercises is the PRIMARY goal
+    2. Theory should be MINIMAL - just enough to understand the exercise
+    3. DO NOT use CitationFinder or search_tool for coding exercises
+    4. Focus on: Exercise statement → Solution code → Output → Brief explanation
+    5. Solve ALL exercises completely before adding any additional theory
+    6. Each exercise solution should include:
+       - Exercise number and question
+       - Complete working code
+       - Execution output
+       - 1-2 line explanation of the solution
     
     EXTRACTION REQUIREMENTS:
     - Title: Extract verbatim from the lab manual header
@@ -140,7 +160,7 @@ lab_report_generation_task:
     - Theory: Adapt length based on lab type (MINIMAL for coding, DETAILED for theory)
     - Algorithms: Use the exact algorithms, formulas, and code from the lab manual
     - Examples: Use the exact examples with their specific values from the lab manual
-    - Exercises: Extract ALL exercises and solve them
+    - Exercises: Extract ALL exercises and solve them (HIGHEST PRIORITY)
     
     WORKFLOW:
     1. Parse extracted content to identify title, objective, theory, procedure, and exercises
@@ -148,29 +168,42 @@ lab_report_generation_task:
        - TYPE A indicators: "write code", "implement", "program", "function", "class", "debug"
        - TYPE B indicators: "calculate", "formula", "equation", "numerical", "algorithm", "convergence"
        - TYPE C indicators: "explain", "describe", "discuss", "compare", "analyze" (no code)
-    3. Extract ALL method/concept names mentioned
-    4. Store method names and verify throughout report generation
-    5. ADAPT THEORY SECTION based on detected type:
+    3. IDENTIFY ALL EXERCISES (Exercise 1, Exercise 2, etc.) - THIS IS THE PRIORITY
+    4. Extract ALL method/concept names mentioned
+    5. Store method names and verify throughout report generation
+    6. ADAPT THEORY SECTION based on detected type:
        - TYPE A: Write 2-3 line definitions only, skip detailed theory
        - TYPE B: Include formulas, derivations, and mathematical background
        - TYPE C: Write comprehensive theory with examples
-    6. TOOL SELECTION based on programming language detected:
+    7. TOOL SELECTION based on programming language detected:
        - Python → CodeCompilerTool
        - C/C++/Java → CodeCompilerTool
        - Octave/MATLAB → OctaveOnline tool
        - JavaScript/Node.js → CodeCompilerTool
        - SQL → Describe queries and expected results (no execution)
        - Shell/Bash → Describe commands and expected output
-    7. Execute ALL code examples and exercises from the manual
-    8. If theory is incomplete, use search_tool for ONLY the specific methods mentioned
-    9. Compile into professional lab report with adapted theory length
-    10. FINAL VERIFICATION: Confirm all method names match input document
+    8. SOLVE ALL EXERCISES FIRST before adding theory:
+       - Execute each exercise code
+       - Capture output
+       - Provide brief explanation
+    9. DO NOT use CitationFinder or search_tool for TYPE A (coding) labs
+    10. Use search_tool ONLY for TYPE B/C if theory is incomplete in manual
+    11. Compile into professional lab report with exercise solutions as main content
+    12. FINAL VERIFICATION: Confirm all method names match input document
+    
+    TOOL USAGE RULES:
+    - CitationFinder: NEVER use for lab manuals (user uploaded content)
+    - search_tool: ONLY for TYPE B/C if theory incomplete, NEVER for TYPE A coding exercises
+    - CodeCompilerTool: Use for Python, C, C++, Java, JavaScript
+    - OctaveOnline: Use for Octave/MATLAB
+    - Notion: Optional - if credentials not provided, skip without error
     
     EXERCISE SOLVING REQUIREMENTS:
     - Identify ALL exercises in the manual (Exercise 1, Exercise 2, etc.)
     - Solve EACH exercise completely with code and output
     - Show step-by-step solution for each exercise
     - Include all sub-questions within exercises
+    - Exercises are the PRIMARY content - 90% of report if they exist
     
     If selected_workflow is not LAB_REPORT, return SKIPPED: Not a lab report workflow.
   expected_output: >
@@ -178,7 +211,10 @@ lab_report_generation_task:
     lab manual content. All method names, formulas, and examples must match the input document.
     No substitution of similar methods allowed. Theory length adapted to lab type: minimal
     (2-3 lines) for coding labs, balanced for numerical labs, detailed for theory labs.
-    All exercises from the manual solved completely. Or SKIPPED for non-lab workflows.
+    If exercises exist, they are the PRIMARY content (90% of report). All exercises from
+    the manual solved completely with code and output. No citations for lab manuals.
+    No search_tool for coding exercises. Notion integration optional.
+    Or SKIPPED for non-lab workflows.
   agent: LabReportGeneratorAgent
 
 numerical_methods_task:

@@ -20,11 +20,22 @@ def save_to_notion(title, notes, subject="General"):
     subject_property = os.getenv("NOTION_SUBJECT_PROPERTY", "Subject").strip()
     notes_property = os.getenv("NOTION_NOTES_PROPERTY", "Notes").strip()
 
+    # Make Notion optional - return friendly message if not configured
     if not notion_api_key or notion_api_key == "your_notion_api_key_here":
-        raise ValueError("NOTION_API_KEY not configured. Please set it in your .env file.")
+        return {
+            "status": "skipped",
+            "message": "Notion integration not configured. To enable, set NOTION_API_KEY in your .env file.",
+            "id": None,
+            "url": None
+        }
     
     if not raw_database_id or raw_database_id == "your_notion_database_id_here":
-        raise ValueError("NOTION_DATABASE_ID not configured. Please set it in your .env file.")
+        return {
+            "status": "skipped",
+            "message": "Notion database not configured. To enable, set NOTION_DATABASE_ID in your .env file.",
+            "id": None,
+            "url": None
+        }
 
     database_id = _normalize_database_id(raw_database_id)
 
@@ -125,9 +136,14 @@ class NotionTool(BaseTool):
     def _run(self, title: str, notes: str, subject: str = "General") -> str:
         try:
             result = save_to_notion(title, notes, subject)
+            
+            # Handle optional Notion integration
+            if isinstance(result, dict) and result.get("status") == "skipped":
+                return f"Notion integration skipped: {result['message']}"
+            
             page_id = result.get("id", "Unknown")
             page_url = result.get("url", "")
             return f"Notion page created with ID: {page_id}. URL: {page_url}"
         except Exception as e:
-            return f"Notion upload failed: {e}"
+            return f"Notion upload failed: {e}. The app continues to work without Notion integration."
     
