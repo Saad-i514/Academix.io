@@ -354,7 +354,7 @@ export default function SettingsPage() {
           <div className="space-y-2 text-sm text-gray-500">
             <p>Version: <span className="text-gray-300">2.0.0</span></p>
             <p>Built by: <span className="text-gray-300">Muhammad Saad bin Mazhar</span></p>
-            <p>Frontend: <span className="text-gray-300">Next.js 14 · Deployed on Vercel</span></p>
+            <p>Frontend: <span className="text-gray-300">Next.js 16 · Deployed on Vercel</span></p>
             <p>Backend: <span className="text-gray-300">FastAPI + CrewAI · Deployed on Railway</span></p>
           </div>
         </div>
