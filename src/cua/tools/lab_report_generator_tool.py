@@ -75,13 +75,72 @@ def extract_lab_manual_content(file_path: str) -> dict:
     if raw_text.startswith("Error"):
         return {"error": raw_text}
     
+    # Extract method names to prevent hallucination
+    method_names = extract_method_names(raw_text)
+    experiment_title = extract_experiment_title(raw_text)
+    
     return {
         "success": True,
         "raw_text": raw_text,
         "file_path": file_path,
         "file_type": file_ext,
         "text_length": len(raw_text),
+        "method_names": method_names,
+        "experiment_title": experiment_title,
     }
+
+
+def extract_method_names(text: str) -> list:
+    """Extract numerical method names from lab manual to prevent hallucination."""
+    import re
+    
+    # Common numerical method patterns
+    method_patterns = [
+        r'bisection\s+method',
+        r'false\s+position\s+method',
+        r'regula\s+falsi',
+        r'secant\s+method',
+        r'newton[-\s]raphson\s+method',
+        r'fixed\s+point\s+iteration',
+        r'euler[\'s]*\s+method',
+        r'runge[-\s]kutta\s+method',
+        r'simpson[\'s]*\s+rule',
+        r'trapezoidal\s+rule',
+        r'gauss[-\s]elimination',
+        r'jacobi\s+method',
+        r'gauss[-\s]seidel',
+    ]
+    
+    found_methods = []
+    text_lower = text.lower()
+    
+    for pattern in method_patterns:
+        matches = re.findall(pattern, text_lower, re.IGNORECASE)
+        if matches:
+            # Normalize the method name
+            method = matches[0].strip().title()
+            if method not in found_methods:
+                found_methods.append(method)
+    
+    return found_methods
+
+
+def extract_experiment_title(text: str) -> str:
+    """Extract experiment title from lab manual."""
+    import re
+    
+    # Look for common title patterns
+    lines = text.split('\n')
+    for i, line in enumerate(lines[:20]):  # Check first 20 lines
+        line = line.strip()
+        # Look for "EXPERIMENT" followed by number and title
+        if re.match(r'EXPERIMENT\s+\d+', line, re.IGNORECASE):
+            return line
+        # Look for lines with all caps that might be titles
+        if line.isupper() and len(line) > 10 and len(line) < 150:
+            return line
+    
+    return "Lab Experiment"
 
 
 def generate_lab_report_template(
@@ -252,22 +311,36 @@ File: {result['file_path']}
 Type: {result['file_type']}
 Content Length: {result['text_length']} characters
 
-Raw Content Preview (first 1000 chars):
-{result['raw_text'][:1000]}...
+CRITICAL - EXTRACTED METHOD NAMES (DO NOT SUBSTITUTE OR CHANGE):
+{', '.join(result['method_names']) if result['method_names'] else 'No specific methods detected'}
+
+EXPERIMENT TITLE:
+{result['experiment_title']}
+
+ANTI-HALLUCINATION REQUIREMENTS:
+- Write about ONLY the methods listed above
+- DO NOT substitute similar methods (e.g., False Position ≠ Newton-Raphson)
+- DO NOT add methods not listed above
+- Use EXACT formulas and algorithms from the content below
+- Verify all method names in your output match the list above
+
+Raw Content Preview (first 1500 chars):
+{result['raw_text'][:1500]}...
 
 Instructions for Agent:
 1. Parse the above content to identify:
-   - Experiment title
+   - Experiment title (use the one extracted above)
    - Objective/Aim
-   - Theory section
-   - Procedure/Algorithm
+   - Theory section (for ONLY the methods listed above)
+   - Procedure/Algorithm (use exact algorithms from the manual)
    - Expected results
 
-2. If code is needed, extract algorithm steps and convert to Octave code
+2. If code is needed, extract algorithm steps and convert to Octave code using EXACT formulas
 3. Use OctaveOnline tool to execute the code
 4. Use ImageCreator tool to generate relevant diagrams
-5. Use search_tool if additional theory is needed
+5. Use search_tool ONLY for the specific methods listed above
 6. Compile everything into a professional lab report
+7. FINAL CHECK: Verify all method names in your report match the extracted list
 
 Full content available for detailed parsing.
 """

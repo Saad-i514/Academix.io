@@ -80,13 +80,38 @@ lab_report_generation_task:
     Read routing directives first.
     If selected_workflow is LAB_REPORT, use LabReportGenerator tool to extract content
     from the lab manual file at {lab_manual_path}.
-    Parse the extracted content to identify title, objective, theory, and procedure.
-    If theory is incomplete, use search_tool to find additional information.
-    Convert algorithm to Octave code and execute using OctaveOnline tool.
-    Compile everything into a professional lab report.
+    
+    CRITICAL ANTI-HALLUCINATION RULES:
+    1. Extract the EXACT experiment title, method names, and algorithms from the lab manual
+    2. DO NOT substitute similar methods (e.g., False Position ≠ Newton-Raphson)
+    3. DO NOT add methods not mentioned in the lab manual
+    4. DO NOT change algorithm names or formulas
+    5. Use ONLY the code, formulas, and examples provided in the lab manual
+    6. If the lab manual mentions "Bisection and False Position", DO NOT write about Newton-Raphson
+    7. Verify that every method name in your output appears in the input document
+    
+    EXTRACTION REQUIREMENTS:
+    - Title: Extract verbatim from the lab manual header
+    - Objective: Use exact objectives listed in the lab manual
+    - Theory: Research ONLY the methods explicitly named in the lab manual
+    - Algorithms: Use the exact algorithms, formulas, and code from the lab manual
+    - Examples: Use the exact examples with their specific values from the lab manual
+    
+    WORKFLOW:
+    1. Parse the extracted content to identify title, objective, theory, and procedure
+    2. Extract ALL method names mentioned (e.g., Bisection, False Position, Secant)
+    3. Store these method names and verify them throughout the report generation
+    4. If theory is incomplete, use search_tool to find information about ONLY those specific methods
+    5. Convert algorithms to Octave code using the EXACT formulas from the lab manual
+    6. Execute using OctaveOnline tool with the same test cases from the lab manual
+    7. Compile everything into a professional lab report
+    8. FINAL VERIFICATION: Confirm all method names in output match the input document
+    
     If selected_workflow is not LAB_REPORT, return SKIPPED: Not a lab report workflow.
   expected_output: >
-    A complete professional lab report in markdown format, or SKIPPED for non-lab workflows.
+    A complete professional lab report in markdown format that strictly follows the input
+    lab manual content. All method names, formulas, and examples must match the input document.
+    No substitution of similar methods allowed. Or SKIPPED for non-lab workflows.
   agent: LabReportGeneratorAgent
 
 numerical_methods_task:
@@ -125,10 +150,18 @@ notes_creation_task:
     WORKFLOW B — LAB REPORT (lab_report_generation_task has content):
       Extract and STORE:
         LAB_REPORT_CONTENT = complete lab report from lab_report_generation_task
-        EXPERIMENT_TOPIC = extract from lab report title/objective
+        EXPERIMENT_TOPIC = extract EXACT title from lab report (DO NOT modify or substitute)
+        METHOD_NAMES = extract ALL method names mentioned (e.g., Bisection, False Position, Secant)
         WORKFLOW_TYPE = "LAB_REPORT"
         FULL_CODE = extract any code blocks from lab report
         FULL_OUTPUT = extract any output blocks from lab report
+      
+      ANTI-HALLUCINATION VALIDATION:
+        - Verify EXPERIMENT_TOPIC matches the lab manual title exactly
+        - Store METHOD_NAMES list and verify it throughout document generation
+        - DO NOT substitute similar methods (False Position ≠ Newton-Raphson)
+        - DO NOT add methods not in the original lab manual
+        - All formulas must match the lab report content exactly
       
       VALIDATION: If lab_report_generation_task output contains "SKIPPED",
       this is NOT a lab report workflow.
@@ -288,9 +321,15 @@ notes_creation_task:
     CONTENT ADAPTATION based on WORKFLOW_TYPE:
     
     IF HAS_LAB_CONTENT or HAS_NUMERICAL_CONTENT:
-      Use theory section from lab report or numerical methods output.
-      Enhance with additional research if needed.
-      Maintain 6-paragraph structure.
+      CRITICAL: Use theory section from lab report or numerical methods output.
+      ANTI-HALLUCINATION RULES:
+        - Write about ONLY the methods listed in METHOD_NAMES
+        - DO NOT substitute similar methods (e.g., False Position ≠ Newton-Raphson)
+        - DO NOT add methods not in the original document
+        - Use the EXACT formulas from the lab report content
+        - Research and cite sources for ONLY the methods in METHOD_NAMES
+      Enhance with additional research if needed, but ONLY for the specified methods.
+      Maintain 6-paragraph structure covering ONLY the methods in the lab manual.
     
     IF HAS_TRANSCRIPT:
       Extract theoretical concepts from transcript.
@@ -601,6 +640,9 @@ notes_creation_task:
     FINAL QUALITY GATE — verify every checkbox before outputting:
       [ ] Content extracted from appropriate workflow (no SKIPPED messages)
       [ ] EXPERIMENT_TOPIC is meaningful and specific
+      [ ] FOR LAB REPORTS: All method names in output match METHOD_NAMES list exactly
+      [ ] FOR LAB REPORTS: No substitution of similar methods (verify each method name)
+      [ ] FOR LAB REPORTS: All formulas match the lab report content exactly
       [ ] Zero LaTeX \[ ... \] display-math blocks anywhere in document
       [ ] Zero double blank lines anywhere in the document
       [ ] Zero forbidden phrases
