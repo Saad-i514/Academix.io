@@ -17,6 +17,34 @@ class LabReportInput(BaseModel):
     include_diagrams: bool = Field(True, description="Whether to generate diagrams")
 
 
+def _get_theory_instruction(lab_type: str) -> str:
+    """Get theory length instruction based on lab type."""
+    if lab_type == "TYPE_A_CODING":
+        return """
+FOR CODING LABS - MINIMAL THEORY (2-3 LINES ONLY):
+- Write ONLY brief definitions (1-2 sentences per concept)
+- NO detailed explanations, NO history, NO extensive background
+- Example: "A binary search tree is a data structure where left child < parent < right child."
+- Focus 80% on code implementation, 20% on minimal theory
+"""
+    elif lab_type == "TYPE_B_NUMERICAL":
+        return """
+FOR NUMERICAL LABS - BALANCED THEORY:
+- Include necessary mathematical formulas and algorithm explanations
+- Show derivations if present in manual
+- Explain convergence criteria and error analysis
+- Focus 40% on theory/math, 60% on code/results
+"""
+    else:  # TYPE_C_THEORY
+        return """
+FOR THEORY LABS - DETAILED EXPLANATIONS:
+- Write comprehensive explanations of concepts
+- Include diagrams, examples, and case studies
+- No code execution needed
+- Focus 90% on theory and analysis, 10% on examples
+"""
+
+
 def extract_text_from_pdf(file_path: str) -> str:
     """Extract text from PDF file."""
     try:
@@ -78,6 +106,7 @@ def extract_lab_manual_content(file_path: str) -> dict:
     # Extract method names to prevent hallucination
     method_names = extract_method_names(raw_text)
     experiment_title = extract_experiment_title(raw_text)
+    lab_type = detect_lab_type(raw_text)
     
     return {
         "success": True,
@@ -87,6 +116,7 @@ def extract_lab_manual_content(file_path: str) -> dict:
         "text_length": len(raw_text),
         "method_names": method_names,
         "experiment_title": experiment_title,
+        "lab_type": lab_type,
     }
 
 
@@ -123,6 +153,83 @@ def extract_method_names(text: str) -> list:
                 found_methods.append(method)
     
     return found_methods
+
+
+def detect_lab_type(text: str) -> str:
+    """Detect lab type to determine theory length: TYPE_A (coding), TYPE_B (numerical), TYPE_C (theory)."""
+    import re
+    
+    text_lower = text.lower()
+    
+    # TYPE A indicators (coding-heavy labs)
+    coding_keywords = [
+        r'write\s+(a\s+)?(code|program|function|script)',
+        r'implement\s+(a|an|the)',
+        r'create\s+(a\s+)?(class|function|program)',
+        r'programming\s+(language|exercise)',
+        r'debug\s+the',
+        r'socket\s+programming',
+        r'process\s+scheduling',
+        r'memory\s+management',
+        r'file\s+system',
+        r'threading',
+        r'sql\s+quer(y|ies)',
+        r'database\s+design',
+        r'web\s+development',
+        r'html|css|javascript',
+        r'react|node\.js|express',
+        r'data\s+structure',
+        r'sorting\s+algorithm',
+        r'binary\s+tree',
+        r'linked\s+list',
+        r'stack|queue|heap',
+    ]
+    
+    # TYPE B indicators (numerical/mathematical labs)
+    numerical_keywords = [
+        r'numerical\s+method',
+        r'calculate\s+(the\s+)?(root|integral|derivative)',
+        r'formula',
+        r'equation',
+        r'convergence',
+        r'iteration',
+        r'error\s+analysis',
+        r'octave|matlab',
+        r'bisection|newton|secant',
+        r'simpson|trapezoidal',
+        r'euler|runge[-\s]kutta',
+        r'machine\s+learning',
+        r'neural\s+network',
+        r'gradient\s+descent',
+    ]
+    
+    # TYPE C indicators (pure theory labs)
+    theory_keywords = [
+        r'explain\s+(the\s+)?(concept|theory|principle)',
+        r'describe\s+(the\s+)?(process|mechanism)',
+        r'discuss\s+(the\s+)?(advantages|disadvantages)',
+        r'compare\s+(and\s+)?contrast',
+        r'analyze\s+(the\s+)?(performance|behavior)',
+        r'theoretical\s+(background|foundation)',
+        r'conceptual\s+understanding',
+    ]
+    
+    # Count matches for each type
+    coding_count = sum(1 for pattern in coding_keywords if re.search(pattern, text_lower))
+    numerical_count = sum(1 for pattern in numerical_keywords if re.search(pattern, text_lower))
+    theory_count = sum(1 for pattern in theory_keywords if re.search(pattern, text_lower))
+    
+    # Determine lab type based on highest count
+    if coding_count > numerical_count and coding_count > theory_count:
+        return "TYPE_A_CODING"
+    elif numerical_count > coding_count and numerical_count > theory_count:
+        return "TYPE_B_NUMERICAL"
+    elif theory_count > 0 and coding_count == 0 and numerical_count == 0:
+        return "TYPE_C_THEORY"
+    elif numerical_count > 0:
+        return "TYPE_B_NUMERICAL"
+    else:
+        return "TYPE_A_CODING"  # Default to coding if unclear
 
 
 def extract_experiment_title(text: str) -> str:
@@ -311,6 +418,16 @@ File: {result['file_path']}
 Type: {result['file_type']}
 Content Length: {result['text_length']} characters
 
+DETECTED LAB TYPE: {result['lab_type']}
+
+LAB TYPE EXPLANATION:
+- TYPE_A_CODING: Coding-heavy lab (Programming, OS, Networking, DSA, Web Dev, DB)
+  → THEORY RULE: Write ONLY 2-3 lines per concept, focus 80% on code
+- TYPE_B_NUMERICAL: Numerical/Mathematical lab (Numerical Methods, ML algorithms)
+  → THEORY RULE: Balanced approach, 40% theory with formulas, 60% code/results
+- TYPE_C_THEORY: Pure theory lab (Conceptual, no coding)
+  → THEORY RULE: Detailed explanations, 90% theory and analysis
+
 CRITICAL - EXTRACTED METHOD NAMES (DO NOT SUBSTITUTE OR CHANGE):
 {', '.join(result['method_names']) if result['method_names'] else 'No specific methods detected'}
 
@@ -324,6 +441,9 @@ ANTI-HALLUCINATION REQUIREMENTS:
 - Use EXACT formulas and algorithms from the content below
 - Verify all method names in your output match the list above
 
+THEORY LENGTH REQUIREMENT BASED ON LAB TYPE:
+{_get_theory_instruction(result['lab_type'])}
+
 Raw Content Preview (first 1500 chars):
 {result['raw_text'][:1500]}...
 
@@ -331,16 +451,30 @@ Instructions for Agent:
 1. Parse the above content to identify:
    - Experiment title (use the one extracted above)
    - Objective/Aim
-   - Theory section (for ONLY the methods listed above)
+   - Theory section (adapt length based on LAB TYPE above)
    - Procedure/Algorithm (use exact algorithms from the manual)
+   - Exercises (identify ALL exercises and solve them)
    - Expected results
 
-2. If code is needed, extract algorithm steps and convert to Octave code using EXACT formulas
-3. Use OctaveOnline tool to execute the code
-4. Use ImageCreator tool to generate relevant diagrams
-5. Use search_tool ONLY for the specific methods listed above
-6. Compile everything into a professional lab report
-7. FINAL CHECK: Verify all method names in your report match the extracted list
+2. ADAPT THEORY LENGTH based on {result['lab_type']}:
+   - TYPE_A_CODING: Write 2-3 line definitions only, skip detailed theory
+   - TYPE_B_NUMERICAL: Include formulas, derivations, mathematical background
+   - TYPE_C_THEORY: Write comprehensive theory with examples
+
+3. If code is needed, identify programming language and use appropriate tool:
+   - Python/C/C++/Java → CodeCompilerTool
+   - Octave/MATLAB → OctaveOnline tool
+   - SQL/Shell → Describe queries/commands and expected results
+
+4. Execute ALL code examples and exercises from the manual
+
+5. Use ImageCreator tool to generate relevant diagrams if needed
+
+6. Use search_tool ONLY for the specific methods listed above (if theory is incomplete)
+
+7. Compile everything into a professional lab report with adapted theory length
+
+8. FINAL CHECK: Verify all method names in your report match the extracted list
 
 Full content available for detailed parsing.
 """
