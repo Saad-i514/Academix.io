@@ -5,8 +5,7 @@ from typing import Optional
 def get_llm(user_openai_key: Optional[str] = None, user_groq_key: Optional[str] = None):
     """
     Returns the most appropriate LLM based on available keys.
-    Priority: User OpenAI -> User Groq -> Env OpenAI -> Env Groq -> Ollama fallback.
-    Returns Ollama as final fallback if no other keys found.
+    Priority: User OpenAI -> User Groq -> Env OpenAI -> Env Groq.
     """
     from langchain_openai import ChatOpenAI
     from langchain_groq import ChatGroq
@@ -41,15 +40,5 @@ def get_llm(user_openai_key: Optional[str] = None, user_groq_key: Optional[str] 
         except Exception:
             pass
 
-    # 5. Ollama fallback (always available)
-    try:
-        return ChatOpenAI(
-            base_url="https://ollama.com/api",
-            api_key="2368ecc5fe6f48e286db86871dcac887.hFXnM3HygCf0Z0vJFqJWy4lDalso",
-            model="llama3.1:8b",  # Default Ollama model
-            temperature=0.7,
-        )
-    except Exception as e:
-        print(f"Warning: Ollama fallback failed: {e}")
-        # Return None as last resort - CrewAI will try env vars itself
-        return None
+    # Return None as last resort - CrewAI will try env vars itself
+    return None
