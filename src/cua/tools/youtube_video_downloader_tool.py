@@ -90,7 +90,7 @@ class BotBypassConfig:
     @classmethod
     def from_env(cls) -> 'BotBypassConfig':
         """Load configuration from environment variables with defaults"""
-        # Default user agent pool
+        # Enhanced user agent pool with more realistic agents
         default_user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
@@ -98,6 +98,9 @@ class BotBypassConfig:
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            # Additional mobile user agents for better bypass
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+            "Mozilla/5.0 (Android 14; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0",
         ]
         
         # Load from environment or use defaults
@@ -118,16 +121,6 @@ class BotBypassConfig:
             max_delay=max_delay,
             enable_logging=enable_logging,
         )
-        
-        # Load from environment or use defaults
-        user_agents_str = os.environ.get("YOUTUBE_USER_AGENTS", "")
-        user_agents = [ua.strip() for ua in user_agents_str.split(",")] if user_agents_str else default_user_agents
-        
-        cookie_path = os.environ.get("YOUTUBE_COOKIE_PATH")
-        max_retries = int(os.environ.get("YOUTUBE_MAX_RETRIES", "6"))
-        base_delay = float(os.environ.get("YOUTUBE_BASE_DELAY", "3.0"))
-        max_delay = float(os.environ.get("YOUTUBE_MAX_DELAY", "60.0"))
-        enable_logging = os.environ.get("YOUTUBE_ENABLE_LOGGING", "true").lower() == "true"
         
         return cls(
             user_agents=user_agents,
@@ -242,8 +235,30 @@ class ExtractionStrategyManager:
         """Returns yt-dlp extractor arguments with fallback strategies"""
         return {
             'youtube': {
-                'player_client': ['android', 'web'],
+                'player_client': ['android', 'web', 'ios'],
                 'skip': ['hls', 'dash'],
+                'innertube_host': 'www.youtube.com',
+                'innertube_key': None,  # Let yt-dlp auto-detect
+            }
+        }
+    
+    def get_advanced_extractor_args(self) -> dict:
+        """Returns more aggressive extractor arguments for difficult cases"""
+        return {
+            'youtube': {
+                'player_client': ['android_creator', 'android_music', 'android_embedded', 'web'],
+                'skip': ['hls'],
+                'innertube_host': 'www.youtube.com',
+                'innertube_key': None,
+            }
+        }
+    
+    def get_emergency_extractor_args(self) -> dict:
+        """Returns minimal extractor arguments for emergency fallback"""
+        return {
+            'youtube': {
+                'player_client': ['web'],
+                'skip': [],
             }
         }
     
@@ -364,13 +379,31 @@ class BotBypassManager:
                 self._current_user_agent
             )
         
-        # Build yt-dlp options with more flexible format selection
+        # Build yt-dlp options with progressive bypass strategies
+        if attempt <= 2:
+            # First few attempts: standard approach
+            format_selector = 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best[height<=720]/best'
+            extractor_args = self.extraction_manager.get_extractor_args()
+        elif attempt <= 4:
+            # Middle attempts: more aggressive
+            format_selector = 'worstaudio[ext=m4a]/worstaudio/worst[height<=480]/worst'
+            extractor_args = self.extraction_manager.get_advanced_extractor_args()
+        else:
+            # Final attempts: emergency mode
+            format_selector = 'worst/18/best'  # Format 18 is often available
+            extractor_args = self.extraction_manager.get_emergency_extractor_args()
+        
         options = {
-            'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best[height<=720]/best',
+            'format': format_selector,
             'quiet': not self.config.enable_logging,
             'no_warnings': not self.config.enable_logging,
             'user_agent': self._current_user_agent,
-            'extractor_args': self.extraction_manager.get_extractor_args(),
+            'extractor_args': extractor_args,
+            # Additional bypass options
+            'http_chunk_size': 10485760,  # 10MB chunks
+            'retries': 3,
+            'fragment_retries': 3,
+            'skip_unavailable_fragments': True,
         }
         
         # Add cookies if available
@@ -386,6 +419,7 @@ class BotBypassManager:
         
         if self.config.enable_logging:
             logger.info(f"Using user agent: {self._current_user_agent[:50]}...")
+            logger.info(f"Attempt {attempt + 1}: Using format selector: {format_selector}")
         
         return options
     
@@ -608,6 +642,7 @@ class StreamingTranscriptionManager:
         strategies = [
             ("direct_stream", "Direct streaming with cookies"),
             ("no_cookies", "No cookies - basic extraction"),
+            ("mobile_client", "Mobile client extraction"),
             ("download_first", "Download then transcribe"),
             ("alternative_extractor", "Alternative extraction method"),
             ("emergency_fallback", "Emergency fallback - any available format")
@@ -623,6 +658,8 @@ class StreamingTranscriptionManager:
                     return self._direct_stream_strategy(source, start_time)
                 elif strategy_name == "no_cookies":
                     return self._no_cookies_strategy(source, start_time)
+                elif strategy_name == "mobile_client":
+                    return self._mobile_client_strategy(source, start_time)
                 elif strategy_name == "download_first":
                     return self._download_first_strategy(source, start_time)
                 elif strategy_name == "alternative_extractor":
@@ -636,7 +673,26 @@ class StreamingTranscriptionManager:
                 continue
         
         # All strategies failed
-        return f"All transcription strategies failed. YouTube access from Railway servers is currently blocked. Please try again later or use a different video. Last error: {str(last_error)}"
+        detailed_error_msg = (
+            f"All {len(strategies)} transcription strategies failed on Railway servers. "
+            f"YouTube has detected automated access and is blocking requests.\n\n"
+            f"Strategies attempted:\n"
+        )
+        
+        for i, (strategy_name, strategy_desc) in enumerate(strategies, 1):
+            detailed_error_msg += f"{i}. {strategy_desc}\n"
+        
+        detailed_error_msg += (
+            f"\nThis is a known issue with YouTube's aggressive bot detection on cloud servers like Railway. "
+            f"Possible solutions:\n"
+            f"1. Try again in 10-15 minutes (YouTube may lift the temporary block)\n"
+            f"2. Use a different YouTube video (some videos are less restricted)\n"
+            f"3. Export fresh cookies from a recently logged-in YouTube session\n"
+            f"4. Contact support if this persists across multiple videos\n\n"
+            f"Last error: {str(last_error)}"
+        )
+        
+        return detailed_error_msg
     
     def _direct_stream_strategy(self, source: str, start_time: float) -> str:
         """Original direct streaming strategy"""
@@ -750,6 +806,56 @@ class StreamingTranscriptionManager:
         
         duration = time.time() - start_time
         logger.info(f"No-cookies strategy completed in {duration:.2f}s")
+        
+        return self._assemble_results()
+    
+    def _mobile_client_strategy(self, source: str, start_time: float) -> str:
+        """Try using mobile client - often bypasses bot detection"""
+        logger.info("Attempting mobile client strategy")
+        
+        # Mobile client options - often less restricted
+        ydl_opts = {
+            'format': 'worst[ext=m4a]/worstaudio/worst',
+            'quiet': True,
+            'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android_music', 'android', 'ios'],
+                    'skip': ['hls'],
+                }
+            },
+            'http_headers': {
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            }
+        }
+        
+        # Add cookies if available for mobile strategy
+        if self.bypass_manager and self.bypass_manager.cookie_manager.has_cookies():
+            cookie_path = self.bypass_manager.cookie_manager.get_cookie_path()
+            if cookie_path:
+                ydl_opts['cookiefile'] = cookie_path
+                logger.info("Mobile strategy: Using cookies")
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(source, download=False)
+            audio_url = info['url']
+        
+        # Use 4 threads for parallel transcription
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            monitor_thread = threading.Thread(target=self.monitor_chunks, args=(executor,))
+            monitor_thread.start()
+            
+            process = subprocess.Popen(["ffmpeg", "-i", audio_url] + self._get_ffmpeg_cmd()[3:], 
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, _ = process.communicate()
+            
+            self.is_ffmpeg_done = True
+            monitor_thread.join()
+        
+        duration = time.time() - start_time
+        logger.info(f"Mobile client strategy completed in {duration:.2f}s")
         
         return self._assemble_results()
     
