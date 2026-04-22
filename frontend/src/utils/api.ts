@@ -4,7 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/a
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 300000, // 5 min — crew tasks can take a while
+  timeout: 1800000, // 30 min — supports transcription of 1-hour videos
 });
 
 // Attach all user API keys from localStorage to every request
