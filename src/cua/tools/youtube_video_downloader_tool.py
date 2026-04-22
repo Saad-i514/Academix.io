@@ -118,6 +118,25 @@ class BotBypassConfig:
             max_delay=max_delay,
             enable_logging=enable_logging,
         )
+        
+        # Load from environment or use defaults
+        user_agents_str = os.environ.get("YOUTUBE_USER_AGENTS", "")
+        user_agents = [ua.strip() for ua in user_agents_str.split(",")] if user_agents_str else default_user_agents
+        
+        cookie_path = os.environ.get("YOUTUBE_COOKIE_PATH")
+        max_retries = int(os.environ.get("YOUTUBE_MAX_RETRIES", "6"))
+        base_delay = float(os.environ.get("YOUTUBE_BASE_DELAY", "3.0"))
+        max_delay = float(os.environ.get("YOUTUBE_MAX_DELAY", "60.0"))
+        enable_logging = os.environ.get("YOUTUBE_ENABLE_LOGGING", "true").lower() == "true"
+        
+        return cls(
+            user_agents=user_agents,
+            cookie_path=cookie_path,
+            max_retries=max_retries,
+            base_delay=base_delay,
+            max_delay=max_delay,
+            enable_logging=enable_logging,
+        )
     
     def validate(self) -> List[str]:
         """Validate configuration and return warnings"""
@@ -588,8 +607,10 @@ class StreamingTranscriptionManager:
         """Handle URL-based transcription with multiple fallback strategies"""
         strategies = [
             ("direct_stream", "Direct streaming with cookies"),
+            ("no_cookies", "No cookies - basic extraction"),
             ("download_first", "Download then transcribe"),
-            ("alternative_extractor", "Alternative extraction method")
+            ("alternative_extractor", "Alternative extraction method"),
+            ("emergency_fallback", "Emergency fallback - any available format")
         ]
         
         last_error = None
@@ -600,10 +621,14 @@ class StreamingTranscriptionManager:
                 
                 if strategy_name == "direct_stream":
                     return self._direct_stream_strategy(source, start_time)
+                elif strategy_name == "no_cookies":
+                    return self._no_cookies_strategy(source, start_time)
                 elif strategy_name == "download_first":
                     return self._download_first_strategy(source, start_time)
                 elif strategy_name == "alternative_extractor":
                     return self._alternative_extractor_strategy(source, start_time)
+                elif strategy_name == "emergency_fallback":
+                    return self._emergency_fallback_strategy(source, start_time)
                     
             except Exception as e:
                 last_error = e
@@ -611,11 +636,7 @@ class StreamingTranscriptionManager:
                 continue
         
         # All strategies failed
-        if self.bypass_manager:
-            error_msg = self.bypass_manager.get_user_friendly_error(last_error, 3)
-            return f"Transcription failed after trying multiple strategies: {error_msg}"
-        else:
-            return f"Multimedia Critical Error: All transcription strategies failed. Last error: {str(last_error)}"
+        return f"All transcription strategies failed. YouTube access from Railway servers is currently blocked. Please try again later or use a different video. Last error: {str(last_error)}"
     
     def _direct_stream_strategy(self, source: str, start_time: float) -> str:
         """Original direct streaming strategy"""
@@ -692,6 +713,96 @@ class StreamingTranscriptionManager:
                     os.remove(f)
             except:
                 pass
+    
+    def _no_cookies_strategy(self, source: str, start_time: float) -> str:
+        """Try without any cookies - sometimes works for public videos"""
+        logger.info("Attempting no-cookies strategy for public video access")
+        
+        # Very basic options - no cookies, no authentication
+        ydl_opts = {
+            'format': 'worst[ext=mp4]/worst',
+            'quiet': True,
+            'no_warnings': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web'],
+                    'skip': ['hls', 'dash'],
+                }
+            }
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(source, download=False)
+            audio_url = info['url']
+        
+        # Use 4 threads for parallel transcription
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            monitor_thread = threading.Thread(target=self.monitor_chunks, args=(executor,))
+            monitor_thread.start()
+            
+            process = subprocess.Popen(["ffmpeg", "-i", audio_url] + self._get_ffmpeg_cmd()[3:], 
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, _ = process.communicate()
+            
+            self.is_ffmpeg_done = True
+            monitor_thread.join()
+        
+        duration = time.time() - start_time
+        logger.info(f"No-cookies strategy completed in {duration:.2f}s")
+        
+        return self._assemble_results()
+    
+    def _emergency_fallback_strategy(self, source: str, start_time: float) -> str:
+        """Emergency fallback - try to get ANY available format"""
+        logger.info("Emergency fallback - trying any available format")
+        
+        # Absolutely minimal options
+        ydl_opts = {
+            'format': 'any',
+            'quiet': False,  # Enable output to see what's available
+            'no_warnings': False,
+            'listformats': False,
+        }
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(source, download=False)
+                
+                # Try to find any usable URL
+                if 'url' in info:
+                    audio_url = info['url']
+                elif 'formats' in info and info['formats']:
+                    # Find the first format with a URL
+                    for fmt in info['formats']:
+                        if 'url' in fmt:
+                            audio_url = fmt['url']
+                            break
+                    else:
+                        raise Exception("No usable format found")
+                else:
+                    raise Exception("No URL found in video info")
+        
+            # Use 4 threads for parallel transcription
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                monitor_thread = threading.Thread(target=self.monitor_chunks, args=(executor,))
+                monitor_thread.start()
+                
+                process = subprocess.Popen(["ffmpeg", "-i", audio_url] + self._get_ffmpeg_cmd()[3:], 
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                _, _ = process.communicate()
+                
+                self.is_ffmpeg_done = True
+                monitor_thread.join()
+            
+            duration = time.time() - start_time
+            logger.info(f"Emergency fallback completed in {duration:.2f}s")
+            
+            return self._assemble_results()
+            
+        except Exception as e:
+            logger.error(f"Emergency fallback failed: {str(e)}")
+            raise Exception(f"Emergency fallback failed: {str(e)}")
     
     def _alternative_extractor_strategy(self, source: str, start_time: float) -> str:
         """Use alternative extraction with minimal options"""
