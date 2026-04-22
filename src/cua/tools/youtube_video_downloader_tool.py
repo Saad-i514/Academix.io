@@ -317,9 +317,9 @@ class BotBypassManager:
                 self._current_user_agent
             )
         
-        # Build yt-dlp options
+        # Build yt-dlp options with more flexible format selection
         options = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best[height<=720]/best',
             'quiet': not self.config.enable_logging,
             'no_warnings': not self.config.enable_logging,
             'user_agent': self._current_user_agent,
@@ -436,9 +436,14 @@ class StreamingTranscriptionManager:
                     ydl_opts=ydl_opts
                 )
             except Exception as e:
+                error_str = str(e)
                 # If bot detection fails, try alternative extraction methods
-                if "Sign in to confirm you're not a bot" in str(e):
+                if "Sign in to confirm you're not a bot" in error_str:
                     logger.warning("Bot detection triggered, trying alternative extraction methods...")
+                    return self._try_alternative_extraction(source)
+                # If format not available, try alternative formats
+                elif "Requested format is not available" in error_str or "format" in error_str.lower():
+                    logger.warning("Format not available, trying alternative formats...")
                     return self._try_alternative_extraction(source)
                 raise e
         else:
@@ -450,9 +455,9 @@ class StreamingTranscriptionManager:
     def _try_alternative_extraction(self, source: str) -> str:
         """Try alternative extraction methods when bot detection occurs"""
         alternative_configs = [
-            # Try with minimal options and different client
+            # Try with more flexible format selection for production
             {
-                'format': 'bestaudio/best',
+                'format': 'worst[ext=m4a]/worst[ext=mp3]/worstaudio/worst',
                 'quiet': True,
                 'no_warnings': True,
                 'extractor_args': {
@@ -462,16 +467,16 @@ class StreamingTranscriptionManager:
                     }
                 }
             },
-            # Try with different user agent and no client specification
+            # Try with any available format
             {
-                'format': 'bestaudio/best',
+                'format': 'worst/best',
                 'quiet': True,
                 'no_warnings': True,
                 'user_agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
             },
-            # Try with basic options only
+            # Try with basic options and any format
             {
-                'format': 'bestaudio/best',
+                'format': '18/worst/best',  # Format 18 is usually available
                 'quiet': True,
                 'no_warnings': True,
             }
@@ -490,12 +495,11 @@ class StreamingTranscriptionManager:
         
         # If all alternatives fail, raise the original error with helpful message
         raise Exception(
-            "YouTube bot detection could not be bypassed. This is common on cloud servers like Railway. "
-            "To resolve this issue:\n"
-            "1. Set up YouTube cookies using YOUTUBE_COOKIE_PATH environment variable\n"
-            "2. Use a browser extension like 'Get cookies.txt LOCALLY' to export cookies\n"
-            "3. Upload the cookies.txt file to your Railway deployment\n"
-            "4. Set YOUTUBE_COOKIE_PATH=/path/to/cookies.txt in Railway environment variables"
+            "YouTube format extraction failed on production server. This can happen due to:\n"
+            "1. Network restrictions on Railway servers\n"
+            "2. Video format availability differences\n"
+            "3. Geographic restrictions\n\n"
+            "Try with a different YouTube video or contact support if this persists."
         )
 
     def run(self, source: str, is_url: bool = True) -> str:
