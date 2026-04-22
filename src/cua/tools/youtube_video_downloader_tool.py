@@ -164,12 +164,40 @@ class CookieManager:
         self.cookie_path = cookie_path
     
     def has_cookies(self) -> bool:
-        """Returns True if cookies are configured"""
-        return self.cookie_path is not None and os.path.exists(self.cookie_path)
+        """Returns True if cookies are configured and file exists"""
+        if not self.cookie_path:
+            return False
+            
+        # Try multiple possible paths
+        possible_paths = [
+            self.cookie_path,
+            f"/app/{self.cookie_path}",
+            f"./{self.cookie_path}",
+            f"/opt/render/project/src/{self.cookie_path}",
+        ]
+        
+        return any(os.path.exists(path) for path in possible_paths)
     
     def get_cookie_path(self) -> Optional[str]:
         """Returns path to cookie file if available"""
-        return self.cookie_path if self.has_cookies() else None
+        if not self.cookie_path:
+            return None
+            
+        # Try multiple possible paths for Railway deployment
+        possible_paths = [
+            self.cookie_path,  # Original path
+            f"/app/{self.cookie_path}",  # Railway app directory
+            f"./{self.cookie_path}",  # Current directory
+            f"/opt/render/project/src/{self.cookie_path}",  # Alternative deployment path
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                logger.info(f"Found cookies at: {path}")
+                return path
+        
+        logger.warning(f"Cookie file not found at any of these paths: {possible_paths}")
+        return None
     
     def validate_cookies(self) -> bool:
         """Validates cookie file format and existence"""
@@ -328,7 +356,14 @@ class BotBypassManager:
         
         # Add cookies if available
         if self.cookie_manager.has_cookies():
-            options['cookiefile'] = self.cookie_manager.get_cookie_path()
+            cookie_path = self.cookie_manager.get_cookie_path()
+            if cookie_path:
+                options['cookiefile'] = cookie_path
+                logger.info(f"Using cookies from: {cookie_path}")
+            else:
+                logger.warning("Cookies configured but file not found")
+        else:
+            logger.warning("No cookies configured or available")
         
         if self.config.enable_logging:
             logger.info(f"Using user agent: {self._current_user_agent[:50]}...")
