@@ -3,6 +3,10 @@
 .env.local
 .env.production
 
+# YouTube cookies (security)
+youtube_cookies.txt
+*_cookies.txt
+
 # Python
 __pycache__/
 *.pyc
