@@ -995,28 +995,61 @@ class MultimediaAssistantTool(BaseTool):
     name: str = "multimedia_transcription_tool"
     description: str = (
         "An optimized multimedia transcription engine. "
-        "Downloads YouTube URL streams or local files, splits them into 16kHz mono chunks in real-time, "
-        "and transcribes them in parallel for maximum speed."
+        "First tries free YouTube Transcript API (instant, no bot detection), "
+        "then falls back to video download if transcripts unavailable. "
+        "Supports YouTube URLs and local media files."
     )
     args_schema: Type[BaseModel] = MultimediaProcessorInput
 
     def _run(self, youtube_url: Optional[str] = None, media_path: Optional[str] = None) -> str:
         try:
-            # Initialize bot bypass configuration
-            config = BotBypassConfig.from_env()
-            bypass_manager = BotBypassManager(config)
-            
-            # Create manager with bot bypass support
-            manager = StreamingTranscriptionManager(
-                segment_time=120,  # 2-minute chunks for better context
-                bypass_manager=bypass_manager
-            )
-            
             if youtube_url:
                 logger.info(f"Transcribing YouTube video: {youtube_url}")
+                
+                # STRATEGY 1: Try free YouTube Transcript API first (instant, no bot detection)
+                try:
+                    from .youtube_transcript_tool import get_youtube_transcript
+                    logger.info("Attempting free YouTube Transcript API...")
+                    transcript = get_youtube_transcript(youtube_url, language="en")
+                    
+                    # Check if we got a valid transcript (not an error message)
+                    if not transcript.startswith("Failed to fetch transcript") and \
+                       not transcript.startswith("Transcripts are disabled") and \
+                       not transcript.startswith("Video is unavailable") and \
+                       not transcript.startswith("YouTube Transcript API is not installed") and \
+                       len(transcript) > 100:  # Valid transcripts are usually longer
+                        logger.info(f"✓ Successfully got transcript via free API ({len(transcript)} chars)")
+                        return transcript
+                    else:
+                        logger.warning(f"Transcript API returned: {transcript[:200]}...")
+                        logger.info("Falling back to video download method...")
+                except ImportError:
+                    logger.warning("YouTube Transcript API not available, falling back to video download")
+                except Exception as e:
+                    logger.warning(f"Transcript API failed: {e}, falling back to video download")
+                
+                # STRATEGY 2: Fall back to video download with bot bypass
+                logger.info("Using video download method with bot bypass...")
+                config = BotBypassConfig.from_env()
+                bypass_manager = BotBypassManager(config)
+                
+                manager = StreamingTranscriptionManager(
+                    segment_time=120,  # 2-minute chunks for better context
+                    bypass_manager=bypass_manager
+                )
+                
                 return manager.run(youtube_url, is_url=True)
+                
             elif media_path and os.path.exists(media_path):
                 logger.info(f"Transcribing local file: {media_path}")
+                config = BotBypassConfig.from_env()
+                bypass_manager = BotBypassManager(config)
+                
+                manager = StreamingTranscriptionManager(
+                    segment_time=120,
+                    bypass_manager=bypass_manager
+                )
+                
                 return manager.run(media_path, is_url=False)
             else:
                 return "Error: No valid source provided for transcription."

@@ -5,6 +5,7 @@ python-dotenv>=1.1.1
 crewai[tools]>=1.12.2
 faster-whisper>=1.0.3
 yt-dlp>=2024.11.18
+youtube-transcript-api>=0.6.2
 langchain>=0.3.0
 langchain-openai>=0.2.0
 langchain-groq>=0.2.0
