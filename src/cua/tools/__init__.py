@@ -1,4 +1,5 @@
 from .youtube_video_downloader_tool import MultimediaAssistantTool
+from .youtube_transcript_tool import YouTubeTranscriptTool
 from .image_creator_tool import ImageCreatorTool
 from .notion_tool import NotionTool
 from .code_compiler_tool import CodeCompilerTool
@@ -16,6 +17,7 @@ from .plagiarism_checker_tool import PlagiarismCheckerTool
 
 __all__ = [
     "MultimediaAssistantTool",
+    "YouTubeTranscriptTool",
     "ImageCreatorTool",
     "NotionTool",
     "CodeCompilerTool",

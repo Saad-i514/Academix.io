@@ -1009,7 +1009,7 @@ class MultimediaAssistantTool(BaseTool):
                 # STRATEGY 1: Try free YouTube Transcript API first (instant, no bot detection)
                 try:
                     from .youtube_transcript_tool import get_youtube_transcript
-                    logger.info("Attempting free YouTube Transcript API...")
+                    logger.info("🎯 Attempting FREE YouTube Transcript API (no bot detection)...")
                     transcript = get_youtube_transcript(youtube_url, language="en")
                     
                     # Check if we got a valid transcript (not an error message)
@@ -1018,18 +1018,21 @@ class MultimediaAssistantTool(BaseTool):
                        not transcript.startswith("Video is unavailable") and \
                        not transcript.startswith("YouTube Transcript API is not installed") and \
                        len(transcript) > 100:  # Valid transcripts are usually longer
-                        logger.info(f"✓ Successfully got transcript via free API ({len(transcript)} chars)")
-                        return transcript
+                        logger.info(f"✅ SUCCESS! Got transcript via FREE API ({len(transcript)} chars) - NO BOT DETECTION!")
+                        return f"[Transcribed using FREE YouTube Transcript API - No bot detection]\n\n{transcript}"
                     else:
-                        logger.warning(f"Transcript API returned: {transcript[:200]}...")
-                        logger.info("Falling back to video download method...")
-                except ImportError:
-                    logger.warning("YouTube Transcript API not available, falling back to video download")
+                        logger.warning(f"⚠️ Transcript API returned: {transcript[:200]}...")
+                        logger.info("📥 Falling back to video download method...")
+                except ImportError as e:
+                    logger.error(f"❌ YouTube Transcript API not installed: {e}")
+                    logger.info("💡 Install with: pip install youtube-transcript-api")
+                    logger.info("📥 Falling back to video download method...")
                 except Exception as e:
-                    logger.warning(f"Transcript API failed: {e}, falling back to video download")
+                    logger.warning(f"⚠️ Transcript API failed: {e}")
+                    logger.info("📥 Falling back to video download method...")
                 
                 # STRATEGY 2: Fall back to video download with bot bypass
-                logger.info("Using video download method with bot bypass...")
+                logger.info("🎬 Using video download method with bot bypass...")
                 config = BotBypassConfig.from_env()
                 bypass_manager = BotBypassManager(config)
                 
