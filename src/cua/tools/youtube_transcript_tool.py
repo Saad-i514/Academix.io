@@ -10,6 +10,7 @@ This tool uses the official YouTube Transcript API which:
 
 import logging
 import re
+import time
 from typing import Optional, List, Dict
 from pydantic import BaseModel, Field
 from crewai.tools import BaseTool
@@ -81,24 +82,40 @@ class YouTubeTranscriptTool(BaseTool):
             # Create API instance
             api = YouTubeTranscriptApi()
             
-            # Try to get transcript in preferred language
-            try:
-                transcript_list = api.fetch(video_id, languages=[language])
-                logger.info(f"Successfully fetched transcript in {language}")
-            except NoTranscriptFound:
-                # Fallback to any available transcript
-                logger.info(f"No transcript in {language}, trying any available language")
-                transcript_list = api.fetch(video_id)
-                logger.info("Successfully fetched transcript in available language")
+            # Try to get transcript in preferred language with retry logic
+            max_retries = 3
+            retry_delay = 2  # Start with 2 seconds
             
-            # Combine all transcript segments into full text
-            full_transcript = " ".join([snippet.text for snippet in transcript_list])
-            
-            # Clean up the transcript
-            full_transcript = self._clean_transcript(full_transcript)
-            
-            logger.info(f"Transcript length: {len(full_transcript)} characters")
-            return full_transcript
+            for attempt in range(max_retries):
+                try:
+                    try:
+                        transcript_list = api.fetch(video_id, languages=[language])
+                        logger.info(f"Successfully fetched transcript in {language}")
+                    except NoTranscriptFound:
+                        # Fallback to any available transcript
+                        logger.info(f"No transcript in {language}, trying any available language")
+                        transcript_list = api.fetch(video_id)
+                        logger.info("Successfully fetched transcript in available language")
+                    
+                    # Combine all transcript segments into full text
+                    full_transcript = " ".join([snippet.text for snippet in transcript_list])
+                    
+                    # Clean up the transcript
+                    full_transcript = self._clean_transcript(full_transcript)
+                    
+                    logger.info(f"Transcript length: {len(full_transcript)} characters")
+                    return full_transcript
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    # Check if it's a rate limit error
+                    if "too many requests" in error_msg.lower() or "blocked" in error_msg.lower():
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Rate limited (attempt {attempt + 1}/{max_retries}). Waiting {retry_delay}s before retry...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                    raise
             
         except TranscriptsDisabled:
             return (
@@ -116,6 +133,18 @@ class YouTubeTranscriptTool(BaseTool):
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Transcript fetch failed: {error_msg}")
+            
+            # Check if it's a rate limit error
+            if "too many requests" in error_msg.lower() or "blocked" in error_msg.lower():
+                return (
+                    f"YouTube has rate-limited requests from this IP.\n\n"
+                    f"Error: {error_msg}\n\n"
+                    "Solutions:\n"
+                    "1. Wait 15-30 minutes and try again\n"
+                    "2. Use a different YouTube video\n"
+                    "3. Configure a free proxy (Webshare offers 10 free proxies)\n"
+                    "4. Contact support if this persists"
+                )
             
             return (
                 f"Failed to fetch transcript for {youtube_url}\n\n"
