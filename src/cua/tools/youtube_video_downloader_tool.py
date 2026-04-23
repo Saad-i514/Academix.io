@@ -1008,9 +1008,12 @@ class MultimediaAssistantTool(BaseTool):
                 
                 # STRATEGY 1: Try free YouTube Transcript API first (instant, no bot detection)
                 try:
-                    from .youtube_transcript_tool import get_youtube_transcript
+                    from .youtube_transcript_tool import get_youtube_transcript, TRANSCRIPT_API_AVAILABLE
                     logger.info("🎯 Attempting FREE YouTube Transcript API (no bot detection)...")
+                    logger.info(f"📦 Transcript API Available: {TRANSCRIPT_API_AVAILABLE}")
+                    
                     transcript = get_youtube_transcript(youtube_url, language="en")
+                    logger.info(f"📝 Transcript API Response (first 300 chars): {transcript[:300]}")
                     
                     # Check if we got a valid transcript (not an error message)
                     if not transcript.startswith("Failed to fetch transcript") and \
@@ -1021,7 +1024,7 @@ class MultimediaAssistantTool(BaseTool):
                         logger.info(f"✅ SUCCESS! Got transcript via FREE API ({len(transcript)} chars) - NO BOT DETECTION!")
                         return f"[Transcribed using FREE YouTube Transcript API - No bot detection]\n\n{transcript}"
                     else:
-                        logger.warning(f"⚠️ Transcript API returned: {transcript[:200]}...")
+                        logger.warning(f"⚠️ Transcript API returned error: {transcript[:200]}...")
                         logger.info("📥 Falling back to video download method...")
                 except ImportError as e:
                     logger.error(f"❌ YouTube Transcript API not installed: {e}")
