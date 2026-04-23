@@ -78,21 +78,21 @@ class YouTubeTranscriptTool(BaseTool):
             
             logger.info(f"Fetching transcript for video: {video_id}")
             
+            # Create API instance
+            api = YouTubeTranscriptApi()
+            
             # Try to get transcript in preferred language
             try:
-                transcript_list = YouTubeTranscriptApi.get_transcript(
-                    video_id,
-                    languages=[language]
-                )
+                transcript_list = api.fetch(video_id, languages=[language])
                 logger.info(f"Successfully fetched transcript in {language}")
             except NoTranscriptFound:
                 # Fallback to any available transcript
                 logger.info(f"No transcript in {language}, trying any available language")
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+                transcript_list = api.fetch(video_id)
                 logger.info("Successfully fetched transcript in available language")
             
             # Combine all transcript segments into full text
-            full_transcript = " ".join([entry['text'] for entry in transcript_list])
+            full_transcript = " ".join([snippet.text for snippet in transcript_list])
             
             # Clean up the transcript
             full_transcript = self._clean_transcript(full_transcript)
@@ -191,7 +191,8 @@ class YouTubeTranscriptTool(BaseTool):
             if not video_id:
                 return []
             
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            api = YouTubeTranscriptApi()
+            transcript_list = api.list(video_id)
             languages = []
             
             for transcript in transcript_list:
